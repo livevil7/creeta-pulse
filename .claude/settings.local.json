@@ -1,0 +1,28 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(*)",
+            "Read(*)",
+            "Write(*)",
+            "Edit(*)",
+            "WebFetch(*)",
+            "WebSearch(*)",
+            "Glob(*)",
+            "Grep(*)",
+            "Task(*)",
+            "Skill(*)",
+            "Agent(*)",
+            "TodoWrite(*)",
+            "NotebookEdit(*)",
+            "LSP(*)",
+            "mcp__plugin_playwright_playwright__*",
+            "mcp__plugin_context7_context7__*",
+            "mcp__plugin_supabase_supabase__*",
+            "mcp__plugin_sentry_sentry__*",
+            "mcp__claude_ai_Notion__*",
+            "mcp__claude_ai_Gmail__*",
+            "mcp__claude_ai_Google_Calendar__*"
+        ]
+    },
+    "permissionMode": "bypassPermissions"
+}
