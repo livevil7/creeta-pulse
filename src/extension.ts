@@ -48,9 +48,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('pulse.openDashboard', () => {
       const panel = DashboardPanel.createOrShow(context.extensionUri);
-      // Send all current project states
-      for (const [project, state] of projectStates) {
-        panel.updateProjectState(project, state);
+      // Send all current project states (use folder basename as display name)
+      for (const [projectKey, state] of projectStates) {
+        panel.updateProjectState(path.basename(projectKey), state);
       }
     }),
 
@@ -123,26 +123,27 @@ function checkPluginInstalled(output: vscode.OutputChannel): void {
 /** Sync watchers to match current workspace folders */
 function syncWatchers(output: vscode.OutputChannel): void {
   const folders = vscode.workspace.workspaceFolders ?? [];
-  const currentProjects = new Set(folders.map(f => f.name));
+  const currentPaths = new Set(folders.map(f => f.uri.fsPath));
 
   // Remove watchers for folders no longer in workspace
-  for (const [project, watcher] of watchers) {
-    if (!currentProjects.has(project)) {
+  for (const [fsPath, watcher] of watchers) {
+    if (!currentPaths.has(fsPath)) {
       watcher.dispose();
-      watchers.delete(project);
-      projectStates.delete(project);
-      previousRunningCount.delete(project);
-      output.appendLine(`[Pulse] Stopped watching: ${project}`);
+      watchers.delete(fsPath);
+      projectStates.delete(fsPath);
+      previousRunningCount.delete(fsPath);
+      output.appendLine(`[Pulse] Stopped watching: ${fsPath}`);
     }
   }
 
   // Add watchers for new folders (.pulse/ preferred, .lens/ fallback)
   for (const folder of folders) {
-    if (!watchers.has(folder.name)) {
-      const pulseDir = path.join(folder.uri.fsPath, '.pulse');
-      const lensDir = path.join(folder.uri.fsPath, '.lens');
+    const fsPath = folder.uri.fsPath;
+    if (!watchers.has(fsPath)) {
+      const pulseDir = path.join(fsPath, '.pulse');
+      const lensDir = path.join(fsPath, '.lens');
       const dashboardDir = fs.existsSync(pulseDir) ? pulseDir : lensDir;
-      startWatcher(folder.name, dashboardDir, output);
+      startWatcher(fsPath, dashboardDir, output);
 
       // Also watch .pulse/ if we started with .lens/ (in case pulse plugin starts later)
       if (dashboardDir === lensDir) {
@@ -160,11 +161,11 @@ function startFallbackWatcher(folder: vscode.WorkspaceFolder, pulseDir: string, 
       const idx = fallbackTimers.indexOf(checkInterval);
       if (idx >= 0) { fallbackTimers.splice(idx, 1); }
       // Switch to .pulse/ watcher
-      const existing = watchers.get(folder.name);
+      const existing = watchers.get(folder.uri.fsPath);
       if (existing) {
         existing.dispose();
       }
-      startWatcher(folder.name, pulseDir, output);
+      startWatcher(folder.uri.fsPath, pulseDir, output);
       output.appendLine(`[Pulse] Switched to .pulse/ for: ${folder.name}`);
     }
   }, 2000);
@@ -173,11 +174,12 @@ function startFallbackWatcher(folder: vscode.WorkspaceFolder, pulseDir: string, 
   setTimeout(() => clearInterval(checkInterval), 5 * 60 * 1000);
 }
 
-function startWatcher(projectName: string, dashboardDir: string, output: vscode.OutputChannel): void {
+function startWatcher(projectKey: string, dashboardDir: string, output: vscode.OutputChannel): void {
+  const displayName = path.basename(projectKey);
   const watcher = new AgentWatcher(dashboardDir);
 
   watcher.onStateChange((state) => {
-    handleStateUpdate(projectName, state);
+    handleStateUpdate(projectKey, state, displayName);
   });
 
   watcher.onFileCreated(() => {
@@ -189,22 +191,23 @@ function startWatcher(projectName: string, dashboardDir: string, output: vscode.
     }
   });
 
-  watchers.set(projectName, watcher);
+  watchers.set(projectKey, watcher);
   output.appendLine(`[Pulse] Watching: ${dashboardDir}`);
 
   // Initial read
   const initialState = watcher.readNow();
   if (initialState) {
-    handleStateUpdate(projectName, initialState);
+    handleStateUpdate(projectKey, initialState, displayName);
   }
 }
 
-function handleStateUpdate(projectName: string, rawState: DashboardState): void {
+function handleStateUpdate(projectKey: string, rawState: DashboardState, displayName?: string): void {
   const state = resolveStaleSession(rawState);
-  projectStates.set(projectName, state);
+  projectStates.set(projectKey, state);
 
-  // Update dashboard panel with this project's state
-  DashboardPanel.currentPanel?.updateProjectState(projectName, state);
+  // Update dashboard panel with display name (folder basename) for UI
+  const label = displayName ?? path.basename(projectKey);
+  DashboardPanel.currentPanel?.updateProjectState(label, state);
 
   // Update tree with most active project's agents
   const activeState = getMostActiveState();
@@ -223,8 +226,8 @@ function handleStateUpdate(projectName: string, rawState: DashboardState): void 
   }
 
   // Auto-open only when running count transitions from 0 → N (not on every poll)
-  const prevRunning = previousRunningCount.get(projectName) ?? 0;
-  previousRunningCount.set(projectName, state.summary.running);
+  const prevRunning = previousRunningCount.get(projectKey) ?? 0;
+  previousRunningCount.set(projectKey, state.summary.running);
   if (state.summary.running > 0 && prevRunning === 0 && !DashboardPanel.currentPanel) {
     const autoOpen = vscode.workspace
       .getConfiguration('pulse')

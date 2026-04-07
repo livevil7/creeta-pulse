@@ -35,7 +35,7 @@
         "command": "pulse.openDashboard",
         "title": "Open Agent Dashboard",
         "category": "Pulse",
-        "icon": "$(pulse)"
+        "icon": "$(radio-tower)"
       },
       {
         "command": "pulse.refreshDashboard",
@@ -55,7 +55,7 @@
         {
           "id": "pulse-agents",
           "title": "Pulse Agents",
-          "icon": "$(pulse)"
+          "icon": "$(radio-tower)"
         }
       ]
     },

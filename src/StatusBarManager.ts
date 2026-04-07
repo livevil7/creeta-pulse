@@ -32,7 +32,7 @@ export class StatusBarManager implements vscode.Disposable {
   }
 
   private reset(): void {
-    this.item.text = '$(pulse) Pulse';
+    this.item.text = '$(radio-tower) Pulse';
     this.item.backgroundColor = undefined;
     this.item.show();
   }
